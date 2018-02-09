@@ -51,7 +51,7 @@
     UIButton *takeButton = [[UIButton alloc]initWithFrame:CGRectMake([UIScreen mainScreen].bounds.size.width/2 - 40, [UIScreen mainScreen].bounds.size.height - 150, 80, 80)];
     takeButton.backgroundColor = [UIColor redColor];
     [self.view addSubview:takeButton];
-    [takeButton addTarget:self action:@selector(capturePhoto:) forControlEvents:UIControlEventTouchUpInside];
+    [takeButton addTarget:self action:@selector(captureDoublePhoto:) forControlEvents:UIControlEventTouchUpInside];
     
     UIButton *toggleButton = [[UIButton alloc]initWithFrame:CGRectMake(0, [UIScreen mainScreen].bounds.size.height - 150, 80, 80)];
     toggleButton.backgroundColor = [UIColor blueColor];
@@ -101,7 +101,7 @@
 {
     [self.captureSession beginConfiguration];
     
-    AVCaptureDeviceType preferedType = AVCaptureDeviceTypeBuiltInWideAngleCamera;
+    AVCaptureDeviceType preferedType = AVCaptureDeviceTypeBuiltInDualCamera;
     self.captureSession.sessionPreset = AVCaptureSessionPresetPhoto;
     
     /* input */
@@ -145,7 +145,6 @@
     
     [self.captureSession commitConfiguration];
 }
-
 - (IBAction)capturePhoto:(id)sender
 {
     dispatch_async(self.sessionQueue, ^{
@@ -154,47 +153,50 @@
         /* Call capturePhoto */
         [self.photoOutput capturePhotoWithSettings:photoSettings delegate:self];
     });
+    
+}
+
+- (IBAction)captureDoublePhoto:(id)sender
+{
+    dispatch_async(self.sessionQueue, ^{
+        AVCapturePhotoSettings *photoSettings = [[AVCapturePhotoSettings alloc]init];
+        photoSettings.highResolutionPhotoEnabled = YES;
+        /* Call capturePhoto */
+        [self.photoOutput capturePhotoWithSettings:photoSettings delegate:self];
+    });
+    dispatch_async(self.sessionQueue, ^{
+        NSError *error = nil;
+        [_inputDevice.device lockForConfiguration:&error];
+        if (_inputDevice.device.videoZoomFactor == 1.0)
+            _inputDevice.device.videoZoomFactor = 2.0;
+        else
+            _inputDevice.device.videoZoomFactor = 1.0;
+        [_inputDevice.device unlockForConfiguration];
+    });
+    dispatch_async(self.sessionQueue, ^{
+        AVCapturePhotoSettings *photoSettings = [[AVCapturePhotoSettings alloc]init];
+        photoSettings.highResolutionPhotoEnabled = YES;
+        /* Call capturePhoto */
+        [self.photoOutput capturePhotoWithSettings:photoSettings delegate:self];
+    });
+   
 }
 
 - (IBAction)toggleCamera:(id)sender
 {
-    if (!self.inputDevice)
+    if (self.inputDevice.device.deviceType != AVCaptureDeviceTypeBuiltInDualCamera)
     {
-        NSLog(@"%s, no input device.", __PRETTY_FUNCTION__);
+        NSLog(@"%s, the input device should be dual camera", __PRETTY_FUNCTION__);
         return;
     }
-    
-    dispatch_async(_sessionQueue, ^{
-        [self.captureSession removeInput:self.inputDevice];
-        
-        if (self.inputDevice.device.deviceType == AVCaptureDeviceTypeBuiltInWideAngleCamera)
-        {
-            AVCaptureDeviceInput *input = [self makeDeviceInputWithDeviceType:AVCaptureDeviceTypeBuiltInTelephotoCamera];
-            if ([self.captureSession canAddInput:input])
-            {
-                self.inputDevice = input;
-                [self.captureSession addInput:input];
-            }
-            else
-            {
-                NSLog(@"cannot add other device as input");
-            }
-        }
-        
-        if (self.inputDevice.device.deviceType == AVCaptureDeviceTypeBuiltInTelephotoCamera)
-        {
-            AVCaptureDeviceInput *input = [self makeDeviceInputWithDeviceType:AVCaptureDeviceTypeBuiltInWideAngleCamera];
-            if ([self.captureSession canAddInput:input])
-            {
-                self.inputDevice = input;
-                [self.captureSession addInput:input];
-            }
-            else
-            {
-                NSLog(@"cannot add other device as input");
-            }
-        }
-    });
+    NSError *error = nil;
+    [_inputDevice.device lockForConfiguration:&error];
+    if (_inputDevice.device.videoZoomFactor == 1.0)
+        _inputDevice.device.videoZoomFactor = 2.0;
+    else
+        _inputDevice.device.videoZoomFactor = 1.0;
+    [_inputDevice.device unlockForConfiguration];
+
 }
 
 #pragma mark - helpers
